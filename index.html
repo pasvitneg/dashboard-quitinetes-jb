@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Quitinetes JB — Leitura Automática Inteligente</title>
+<style>
+:root{
+  --brand:#0f766e; --brand-2:#0ea5e9; --agua:#0ea5e9; --energia:#f59e0b;
+  --bg:#f4f6f8; --card:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0;
+  --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --ok-bg:#dcfce7; --warn-bg:#fef3c7; --bad-bg:#fee2e2; --pend-bg:#e2e8f0;
+  --radius:14px; --shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.05);
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --card:#131c2f; --text:#e5eaf3; --muted:#93a1b8; --line:#243049;
+  --ok-bg:#12351f; --warn-bg:#3b2a0b; --bad-bg:#3d1417; --pend-bg:#243049; --shadow:none;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(120deg,var(--brand),var(--brand-2));color:#fff;padding:22px 20px 80px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 16px}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+h1{margin:0;font-size:24px;letter-spacing:-.3px}
+.sub{opacity:.85;font-size:13px;margin-top:2px}
+.status{display:flex;gap:10px;align-items:center;font-size:13px;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:#fbbf24;display:inline-block;margin-right:6px}
+.dot.ok{background:#4ade80}.dot.err{background:#f87171}
+button,select{font:inherit;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 12px;cursor:pointer}
+header button{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35)}
+header button:hover{background:rgba(255,255,255,.28)}
+main{margin-top:-50px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:16px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+.kpi .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+.kpi .v{font-size:26px;font-weight:700;margin:4px 0 2px}
+.kpi .s{color:var(--muted);font-size:13px}
+.kpi.agua{border-top:4px solid var(--agua)}.kpi.energia{border-top:4px solid var(--energia)}
+.kpi.exc{border-top:4px solid var(--bad)}.kpi.pend{border-top:4px solid var(--muted)}
+h2{font-size:16px;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.unit{font-weight:700}.small{font-size:12px;color:var(--muted)}
+.banner{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px;display:none}
+.btn-primary{background:var(--brand);color:#fff;border:none;font-weight:600;padding:10px 16px;border-radius:8px}
+.btn-primary:hover{opacity:.9}
+.btn-imobiliaria{background:#0284c7;color:#fff;border:none;font-weight:600;padding:10px 16px;border-radius:8px}
+.btn-imobiliaria:hover{opacity:.9}
+.chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+#modal{position:fixed;inset:0;background:rgba(2,6,23,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:100}
+#modal.open{display:flex}
+.sheet{background:#fff;color:#0f172a;border-radius:14px;max-width:750px;width:100%;padding:24px;max-height:92vh;overflow:auto}
+.sheet h3{margin:0 0 2px}.sheet table{width:100%;margin-top:12px}
+.sheet td,.sheet th{padding:7px 4px;border-bottom:1px solid #e2e8f0;color:#0f172a}
+.sheet .tot td{font-weight:700;font-size:15px;border-top:2px solid #0f172a}
+.right{text-align:right}
+@media print{
+  body *{visibility:hidden}
+  #modal,#modal *{visibility:visible}
+  #modal{position:absolute;inset:0;background:#fff;display:block;padding:0}
+  .sheet{max-width:100%;border-radius:0;box-shadow:none;padding:0}
+  .noprint{display:none!important}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div>
+      <h1 id="titulo">Quitinetes JB</h1>
+      <div class="sub">Painel Inteligente — Leitura Atual Automatizada & Relatório Imobiliária</div>
+    </div>
+    <div class="status">
+      <span><i class="dot" id="dot"></i><span id="statusTxt">Carregando…</span></span>
+      <button id="btnRefresh" title="Atualizar agora">↻ Atualizar</button>
+      <button id="btnTheme">◐ Tema</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="banner"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <label style="font-weight:600;font-size:13px">Competência: 
+      <select id="selMes" onchange="render()"></select>
+    </label>
+    <button class="btn-imobiliaria" onclick="imprimirRelatorioImobiliaria()">🖨️ Relatório do Mês para a Imobiliária (PDF / Impressão)</button>
+  </div>
+
+  <section class="grid kpis" id="kpis"></section>
+
+  <section class="card">
+    <h2>📊 Apuração Geral do Mês (Leituras Anteriores Buscadas Automaticamente)</h2>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Unidade</th>
+            <th>Consumo Água</th>
+            <th>Custo Água</th>
+            <th>Consumo Energia</th>
+            <th>Custo Energia</th>
+            <th>Excedente a Cobrar</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyApuracao"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<div id="modal"><div class="sheet" id="sheet"></div></div>
+
+<script>
+const CONFIG = {
+  planilhaId: "1SK0tjxA7Y3MFBl6ZsywpWmF8IZ9WygmygIf-L867rTQ",
+  gidApuracao: "347489481",
+  franquia: { agua: 100.00, energia: 150.00 },
+  tarifa: { agua: 12.00, energia: 1.14 },
+  unidades: ["JB-101", "JB-102", "JB-103", "JB-201", "JB-202", "JB-203"]
+};
+
+let RAW_RECORDS = [], PROCESSED_RECORDS = [], LAST_OK = null;
+
+const brl = v => (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const num = (v,d=2) => (v==null||isNaN(v)) ? "0,00" : v.toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const norm = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+
+(function initTheme(){
+  let t = localStorage.getItem("tema") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark":"light");
+  document.documentElement.dataset.theme = t;
+  document.getElementById("btnTheme").onclick = () => {
+    t = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem("tema", t);
+  };
+})();
+
+window.google = window.google || {}; google.visualization = google.visualization || {}; google.visualization.Query = google.visualization.Query || {};
+const _pend = {}; let _rid = 0;
+google.visualization.Query.setResponse = function(resp){ const f = _pend[resp && resp.reqId]; if(f) f(resp); };
+function getCsv(gid){
+  return new Promise((resolve, reject) => {
+    const id = String(++_rid), s = document.createElement("script");
+    const timer = setTimeout(() => { cleanup(); reject(new Error("Tempo esgotado")); }, 20000);
+    function cleanup(){ clearTimeout(timer); delete _pend[id]; s.remove(); }
+    _pend[id] = resp => {
+      cleanup();
+      if(resp.status === "error"){ reject(new Error("Erro do Google Sheets")); return; }
+      const tb = resp.table;
+      const head = tb.cols.map(c => c.label || "");
+      const body = tb.rows.map(r => r.c.map(c => c ? (c.f != null ? c.f : (c.v != null ? c.v : "")) : ""));
+      resolve([head, ...body].filter(x => x.some(v => String(v).trim() !== "")));
+    };
+    s.onerror = () => { cleanup(); reject(new Error("Falha de rede")); };
+    s.src = `https://docs.google.com/spreadsheets/d/${CONFIG.planilhaId}/gviz/tq?tqx=reqId:${id}&gid=${gid}&headers=1&_=${Date.now()}`;
+    document.head.appendChild(s);
+  });
+}
+
+function compKey(s){
+  if(!s) return null;
+  s = String(s).trim();
+  let m = s.match(/(\d{1,2})\s*[\/\-.]\s*(\d{4})/);
+  if(m) return m[2] + "-" + String(m[1]).padStart(2, "0");
+  m = s.match(/(\d{4})\s*[\/\-.]\s*(\d{1,2})/);
+  if(m) return m[1] + "-" + String(m[2]).padStart(2, "0");
+  return s;
+}
+
+function getPreviousMonthKey(key){
+  let [ano, mes] = key.split("-").map(Number);
+  mes--;
+  if(mes === 0){ mes = 12; ano--; }
+  return ano + "-" + String(mes).padStart(2, "0");
+}
+
+async function loadData(){
+  document.getElementById("dot").className = "dot";
+  document.getElementById("statusTxt").textContent = "Buscando leituras atuais e anteriores…";
+  try {
+    const rows = await getCsv(CONFIG.gidApuracao);
+    if(rows.length < 2) throw new Error("Planilha vazia.");
+    
+    const H = rows[0].map(norm);
+    const find = (...f) => H.findIndex(h => f.every(x => h.includes(norm(x))));
+    const ix = {
+      comp: find("COMPETENCIA"), unit: find("UNIDADE"), data: find("DATA"), resp: find("LEITURISTA"),
+      wB: find("AGUA ATUAL"), eB: find("ENERGIA ATUAL")
+    };
+
+    RAW_RECORDS = [];
+    rows.slice(1).forEach(r => {
+      const g = i => i >= 0 ? (r[i] ?? "") : "";
+      const unit = String(g(ix.unit)).trim().toUpperCase();
+      const key = compKey(g(ix.comp));
+      if(!unit || !key) return;
+
+      RAW_RECORDS.push({
+        key, unit, data: g(ix.data), resp: g(ix.resp),
+        wB: parseFloat(g(ix.wB)) || 0,
+        eB: parseFloat(g(ix.eB)) || 0
+      });
+    });
+
+    RAW_RECORDS.sort((a,b) => a.key.localeCompare(b.key));
+
+    PROCESSED_RECORDS = [];
+    CONFIG.unidades.forEach(u => {
+      const unitRecords = RAW_RECORDS.filter(r => r.unit === u);
+      unitRecords.forEach((r, idx) => {
+        let wA = 0, eA = 0;
+        if(idx > 0){
+          wA = unitRecords[idx-1].wB;
+          eA = unitRecords[idx-1].eB;
+        } else {
+          const prevKey = getPreviousMonthKey(r.key);
+          const prevRec = RAW_RECORDS.find(x => x.unit === u && x.key === prevKey);
+          if(prevRec){ wA = prevRec.wB; eA = prevRec.eB; }
+        }
+
+        const wC = Math.max(0, r.wB - wA);
+        const eC = Math.max(0, r.eB - eA);
+        const wCost = wC * CONFIG.tarifa.agua;
+        const eCost = eC * CONFIG.tarifa.energia;
+        const wExc = Math.max(0, wCost - CONFIG.franquia.agua);
+        const eExc = Math.max(0, eCost - CONFIG.franquia.energia);
+
+        PROCESSED_RECORDS.push({
+          key: r.key, unit: u, data: r.data, resp: r.resp,
+          wA, wB: r.wB, wC, wCost, wExc,
+          eA, eB: r.eB, eC, eCost, eExc,
+          totalExc: wExc + eExc
+        });
+      });
+    });
+
+    LAST_OK = new Date();
+    document.getElementById("dot").className = "dot ok";
+    document.getElementById("statusTxt").textContent = "Sincronizado às " + LAST_OK.toLocaleTimeString("pt-BR", {hour:"2-digit",minute:"2-digit"});
+    document.getElementById("banner").style.display = "none";
+    
+    fillSelects();
+    render();
+  } catch(err) {
+    document.getElementById("dot").className = "dot err";
+    document.getElementById("statusTxt").textContent = "Erro na sincronização";
+    const b = document.getElementById("banner");
+    b.style.display = "block";
+    b.textContent = "Não foi possível carregar os dados. Verifique o compartilhamento da planilha.";
+  }
+}
+
+function fillSelects(){
+  const have = [...new Set(PROCESSED_RECORDS.map(r => r.key))].sort().reverse();
+  const d = new Date(), cur = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0');
+  const meses = [...new Set([cur, ...have])].sort().reverse();
+  const sm = document.getElementById("selMes");
+  const prev = sm.value;
+  sm.innerHTML = meses.map(k => `<option value="${k}">${k.split('-').reverse().join('/')}</option>`).join("");
+  sm.value = (prev && meses.includes(prev)) ? prev : meses[0];
+}
+
+function render(){
+  const key = document.getElementById("selMes").value;
+  const list = PROCESSED_RECORDS.filter(r => r.key === key);
+  
+  let totWC = 0, totEC = 0, totWCost = 0, totECost = 0, totExc = 0;
+  list.forEach(r => {
+    totWC += r.wC; totEC += r.eC;
+    totWCost += r.wCost; totECost += r.eCost;
+    totExc += r.totalExc;
+  });
+
+  document.getElementById("kpis").innerHTML = `
+    <div class="card kpi agua"><div class="l">Água Total (${key.split('-').reverse().join('/')})</div><div class="v">${num(totWC)} m³</div><div class="s">Custo Total: ${brl(totWCost)}</div></div>
+    <div class="card kpi energia"><div class="l">Energia Total (${key.split('-').reverse().join('/')})</div><div class="v">${num(totEC,0)} kWh</div><div class="s">Custo Total: ${brl(totECost)}</div></div>
+    <div class="card kpi exc"><div class="l">Total Excedente a Cobrar</div><div class="v">${brl(totExc)}</div><div class="s">Soma de todas as quitinetes</div></div>
+    <div class="card kpi pend"><div class="l">Unidades Apuradas</div><div class="v">${list.length} / ${CONFIG.unidades.length}</div><div class="s">Leituras enviadas no mês</div></div>
+  `;
+
+  document.getElementById("tbodyApuracao").innerHTML = CONFIG.unidades.map(u => {
+    const r = list.find(x => x.unit === u);
+    if(!r) return `<tr><td class="unit">${u}</td><td colspan="6" class="small">Aguardando envio da leitura atual</td><td><span class="chip pend">Pendente</span></td></tr>`;
+    
+    const st = r.totalExc > 0 ? "bad" : "ok";
+    return `<tr>
+      <td class="unit">${r.unit}<div class="small">${r.resp || "Leituranista"} · ${r.data || ""}</div></td>
+      <td>${num(r.wC)} m³<div class="small">Ant: ${num(r.wA,3)} | At: ${num(r.wB,3)}</div></td><td>${brl(r.wCost)}</td>
+      <td>${num(r.eC,1)} kWh<div class="small">Ant: ${num(r.eA,1)} | At: ${num(r.eB,1)}</div></td><td>${brl(r.eCost)}</td>
+      <td><b>${brl(r.totalExc)}</b></td>
+      <td><span class="chip ${st}">${r.totalExc > 0 ? "Excedeu Franquia" : "Dentro da Franquia"}</span></td>
+      <td><button onclick="imprimirExtratoIndividual('${r.unit}','${r.key}')">🖨️ Extrato Unidade</button></td>
+    </tr>`;
+  }).join("");
+}
+
+function imprimirRelatorioImobiliaria(){
+  const key = document.getElementById("selMes").value;
+  const list = PROCESSED_RECORDS.filter(r => r.key === key);
+  if(!list.length){ alert("Não há leituras registradas para esta competência!"); return; }
+
+  let totWC = 0, totEC = 0, totWCost = 0, totECost = 0, totWExc = 0, totEExc = 0, totExc = 0;
+  list.forEach(r => {
+    totWC += r.wC; totEC += r.eC;
+    totWCost += r.wCost; totECost += r.eCost;
+    totWExc += r.wExc; totEExc += r.eExc;
+    totExc += r.totalExc;
+  });
+
+  const dataAtual = new Date().toLocaleDateString('pt-BR');
+
+  document.getElementById("sheet").innerHTML = `
+    <div style="border-bottom: 2px solid #0f766e; padding-bottom:10px; margin-bottom:16px;">
+      <h2 style="margin:0; font-size:20px; color:#0f766e;">DEMONSTRATIVO DE CONSUMO E REPASSE DE EXCEDENTES</h2>
+      <div style="font-size:13px; color:#64748b; margin-top:4px;">
+        <strong>Empreendimento:</strong> Quitinetes JB | <strong>Destinatário:</strong> Edson Reis Imóveis | <strong>Competência:</strong> ${key.split('-').reverse().join('/')}
+      </div>
+      <div style="font-size:12px; color:#64748b;">Emissão do Relatório: ${dataAtual} (Leitura Anterior Buscada Automaticamente)</div>
+    </div>
+
+    <table style="width:100%; border-collapse:collapse; margin-bottom:16px; font-size:13px;">
+      <thead>
+        <tr style="background:#f1f5f9; text-align:left;">
+          <th style="padding:8px; border-bottom:2px solid #cbd5e1;">Unidade</th>
+          <th style="padding:8px; border-bottom:2px solid #cbd5e1;">Água (m³)</th>
+          <th style="padding:8px; border-bottom:2px solid #cbd5e1;">Exc. Água (R$)</th>
+          <th style="padding:8px; border-bottom:2px solid #cbd5e1;">Energia (kWh)</th>
+          <th style="padding:8px; border-bottom:2px solid #cbd5e1;">Exc. Energia (R$)</th>
+          <th style="padding:8px; border-bottom:2px solid #cbd5e1;" class="right">Total a Cobrar (R$)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${CONFIG.unidades.map(u => {
+          const r = list.find(x => x.unit === u);
+          if(!r) return `<tr><td style="padding:8px; border-bottom:1px solid #e2e8f0;"><strong>${u}</strong></td><td colspan="5" style="padding:8px; border-bottom:1px solid #e2e8f0; color:#94a3b8;">Aguardando envio</td></tr>`;
+          return `<tr>
+            <td style="padding:8px; border-bottom:1px solid #e2e8f0;"><strong>${r.unit}</strong></td>
+            <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${num(r.wC)} m³</td>
+            <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${brl(r.wExc)}</td>
+            <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${num(r.eC,1)} kWh</td>
+            <td style="padding:8px; border-bottom:1px solid #e2e8f0;">${brl(r.eExc)}</td>
+            <td style="padding:8px; border-bottom:1px solid #e2e8f0;" class="right"><strong>${brl(r.totalExc)}</strong></td>
+          </tr>`;
+        }).join("")}
+        <tr class="tot" style="background:#f8fafc;">
+          <td style="padding:10px;"><strong>TOTAL GERAL DO MÊS</strong></td>
+          <td style="padding:10px;"><strong>${num(totWC)} m³</strong></td>
+          <td style="padding:10px;"><strong>${brl(totWExc)}</strong></td>
+          <td style="padding:10px;"><strong>${num(totEC,0)} kWh</strong></td>
+          <td style="padding:10px;"><strong>${brl(totEExc)}</strong></td>
+          <td style="padding:10px; font-size:16px; color:#dc2626;" class="right"><strong>${brl(totExc)}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="font-size:12px; color:#475569; background:#f1f5f9; padding:12px; border-radius:8px; margin-bottom:16px;">
+      <strong>Regra das Franquias Contratuais aplicadas aos Locatários:</strong><br>
+      • Franquia Inclusa de Água: R$ 100,00 | Tarifa: R$ 12,00/m³<br>
+      • Franquia Inclusa de Energia: R$ 150,00 | Tarifa: R$ 1,14/kWh<br>
+      • Os valores da coluna <strong>"Total a Cobrar"</strong> são os excedentes repassados aos aluguéis do mês.
+    </div>
+
+    <div style="display:flex; justify-content:space-between; margin-top:30px; padding-top:15px; border-top:1px solid #cbd5e1; font-size:12px; color:#64748b;">
+      <div>____________________________________<br>Valter (Administrador / Proprietário)</div>
+      <div>____________________________________<br>Recebido por Edson Reis Imóveis</div>
+    </div>
+
+    <div class="noprint" style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+      <button class="btn-primary" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+      <button onclick="document.getElementById('modal').classList.remove('open')">Fechar</button>
+    </div>
+  `;
+  document.getElementById("modal").classList.add("open");
+}
+
+function imprimirExtratoIndividual(unit, key){
+  const r = PROCESSED_RECORDS.find(x => x.unit === unit && x.key === key);
+  if(!r) return;
+  document.getElementById("sheet").innerHTML = `
+    <h3>Extrato de Consumo — ${unit}</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:12px">Competência: ${key.split('-').reverse().join('/')} · Data: ${r.data || "N/D"}</div>
+    <table style="width:100%;margin-bottom:16px">
+      <tr><th>Item</th><th class="right">Água</th><th class="right">Energia</th></tr>
+      <tr><td>Leitura Anterior</td><td class="right">${num(r.wA,3)} m³</td><td class="right">${num(r.eA,1)} kWh</td></tr>
+      <tr><td>Leitura Atual</td><td class="right">${num(r.wB,3)} m³</td><td class="right">${num(r.eB,1)} kWh</td></tr>
+      <tr><td>Consumo Medido</td><td class="right">${num(r.wC,3)} m³</td><td class="right">${num(r.eC,1)} kWh</td></tr>
+      <tr><td>Tarifa Aplicada</td><td class="right">${brl(CONFIG.tarifa.agua)}/m³</td><td class="right">${brl(CONFIG.tarifa.energia)}/kWh</td></tr>
+      <tr><td>Custo Total do Consumo</td><td class="right">${brl(r.wCost)}</td><td class="right">${brl(r.eCost)}</td></tr>
+      <tr><td>Franquia Inclusa</td><td class="right">- ${brl(CONFIG.franquia.agua)}</td><td class="right">- ${brl(CONFIG.franquia.energia)}</td></tr>
+      <tr><td><b>Excedente por Item</b></td><td class="right"><b>${brl(r.wExc)}</b></td><td class="right"><b>${brl(r.eExc)}</b></td></tr>
+      <tr class="tot"><td>VALOR TOTAL A COBRAR</td><td class="right" colspan="2">${brl(r.totalExc)}</td></tr>
+    </table>
+    <div style="font-size:12px;color:#64748b;margin-bottom:16px">Leituranista / Responsável: ${r.resp || "N/D"}</div>
+    <div class="noprint" style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn-primary" onclick="window.print()">🖨️ Imprimir / Gerar PDF</button>
+      <button onclick="document.getElementById('modal').classList.remove('open')">Fechar</button>
+    </div>
+  `;
+  document.getElementById("modal").classList.add("open");
+}
+
+document.getElementById("btnRefresh").onclick = loadData;
+loadData();
+setInterval(loadData, 60000);
+</script>
+</body>
+</html>
